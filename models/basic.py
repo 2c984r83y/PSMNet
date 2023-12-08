@@ -13,7 +13,6 @@ class PSMNet(nn.Module):
         self.maxdisp = maxdisp
         self.feature_extraction = feature_extraction()
 
-########
         # des1,2,3,4 为残差模块，完全相同
         self.dres0 = nn.Sequential(convbn_3d(64, 32, 3, 1, 1),
                                      nn.ReLU(inplace=True),
