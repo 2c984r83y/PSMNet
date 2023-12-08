@@ -9,6 +9,12 @@ from .submodule import *
 
 class hourglass(nn.Module):
     def __init__(self, inplanes):
+        """
+        Hourglass module for the PSMNet model.
+
+        Args:
+            inplanes (int): Number of input channels.
+        """
         super(hourglass, self).__init__()
 
         self.conv1 = nn.Sequential(convbn_3d(inplanes, inplanes*2, kernel_size=3, stride=2, pad=1),
@@ -29,7 +35,19 @@ class hourglass(nn.Module):
                                    nn.BatchNorm3d(inplanes)) #+x
 
     def forward(self, x ,presqu, postsqu):
-        
+        """
+        Forward pass of the hourglass module.
+
+        Args:
+            x (torch.Tensor): Input tensor.
+            presqu (torch.Tensor): Tensor from the previous hourglass module.
+            postsqu (torch.Tensor): Tensor from the next hourglass module.
+
+        Returns:
+            out (torch.Tensor): Output tensor.
+            pre (torch.Tensor): Tensor after the first set of convolutions.
+            post (torch.Tensor): Tensor after the second set of convolutions.
+        """
         out  = self.conv1(x) #in:1/4 out:1/8
         pre  = self.conv2(out) #in:1/8 out:1/8
         if postsqu is not None:
@@ -101,12 +119,12 @@ class PSMNet(nn.Module):
 
 
     def forward(self, left, right):
-
+        # feature extraction
         refimg_fea     = self.feature_extraction(left)
         targetimg_fea  = self.feature_extraction(right)
 
 
-        #matching
+        # create cost volume
         cost = Variable(torch.FloatTensor(refimg_fea.size()[0], refimg_fea.size()[1]*2, self.maxdisp//4,  refimg_fea.size()[2],  refimg_fea.size()[3]).zero_()).cuda()
 
         for i in range(self.maxdisp//4):
@@ -116,14 +134,20 @@ class PSMNet(nn.Module):
             else:
              cost[:, :refimg_fea.size()[1], i, :,:]   = refimg_fea
              cost[:, refimg_fea.size()[1]:, i, :,:]   = targetimg_fea
-        cost = cost.contiguous()
-
+        cost = cost.contiguous()        
+        """
+        3D CNN: stack hourglass
+        In order to learn more context information, we use a stacked hourglass (encoder-decoder) architecture,
+        consisting of repeated top-down/bottom-up processing in conjunction with intermediate supervision
+        """
         cost0 = self.dres0(cost)
         cost0 = self.dres1(cost0) + cost0
 
         out1, pre1, post1 = self.dres2(cost0, None, None) 
         out1 = out1+cost0
-
+        # self.dres2 = hourglass(32)
+        # self.dres3 = hourglass(32)
+        # self.dres4 = hourglass(32)
         out2, pre2, post2 = self.dres3(out1, pre1, post1) 
         out2 = out2+cost0
 
@@ -139,6 +163,10 @@ class PSMNet(nn.Module):
             cost2 = F.upsample(cost2, [self.maxdisp,left.size()[2],left.size()[3]], mode='trilinear')
 
             cost1 = torch.squeeze(cost1,1)
+            # 中间监督是指在每个沙漏网络的输出层添加一个损失函数，
+            # 用于计算输出的视差图和真实的视差图之间的误差，
+            # 从而使网络能够在每个阶段都得到有效的反馈和优化。
+            # 提高网络的性能和稳定性，防止梯度消失和过拟合等问题
             pred1 = F.softmax(cost1,dim=1)
             pred1 = disparityregression(self.maxdisp)(pred1)
 
@@ -149,9 +177,9 @@ class PSMNet(nn.Module):
         cost3 = F.upsample(cost3, [self.maxdisp,left.size()[2],left.size()[3]], mode='trilinear')
         cost3 = torch.squeeze(cost3,1)
         pred3 = F.softmax(cost3,dim=1)
-        #For your information: This formulation 'softmax(c)' learned "similarity" 
-        #while 'softmax(-c)' learned 'matching cost' as mentioned in the paper.
-        #However, 'c' or '-c' do not affect the performance because feature-based cost volume provided flexibility.
+        # For your information: This formulation 'softmax(c)' learned "similarity" 
+        # while 'softmax(-c)' learned 'matching cost' as mentioned in the paper.
+        # However, 'c' or '-c' do not affect the performance because feature-based cost volume provided flexibility.
         pred3 = disparityregression(self.maxdisp)(pred3)
 
         if self.training:
