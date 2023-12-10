@@ -162,7 +162,7 @@ def main():
             print('Iter %d training loss = %.3f , time = %.2f' %(batch_idx, loss, time.time() - start_time))
             total_train_loss += loss
         print('epoch %d total training loss = %.3f' %(epoch, total_train_loss/len(TrainImgLoader)))
-	   
+
         ## Test ##
         for batch_idx, (imgL, imgR, disp_L) in enumerate(TestImgLoader):
             test_loss = test(imgL,imgR, disp_L)
@@ -183,7 +183,7 @@ def main():
             'train_loss': total_train_loss/len(TrainImgLoader),
             'test_loss': total_test_loss/len(TestImgLoader)*100,
         }, savefilename)
-	
+
     print('full finetune time = %.2f HR' %((time.time() - start_full_time)/3600))
     print(max_epo)
     print(max_acc)
