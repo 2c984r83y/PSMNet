@@ -160,6 +160,7 @@ class feature_extraction(nn.Module):
             dilation (int): The dilation value for the first block.扩张值
         """
         # conv1_x, output channels=32, blocks number=3
+        # BasicBlock 实现了 ResNet 中的残差模块
         self.layer1 = self._make_layer(BasicBlock, 32, 3, 1,1,1)
         # conv2_x, Downsampling is performed by conv0 1 and conv2 1 with stride of 2.
         self.layer2 = self._make_layer(BasicBlock, 64, 16, 2,1,1)
